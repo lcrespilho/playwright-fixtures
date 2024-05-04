@@ -1,10 +1,10 @@
 {
   "name": "@lcrespilho/playwright-fixtures",
-  "version": "1.0.10",
+  "version": "2.0.0",
   "description": "Playwright fixtures for dataLayer, collects_ga3 and collects_ga4",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lcrespilho/playwright-fixtures"
+    "url": "git+https://github.com/lcrespilho/playwright-fixtures.git"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,16 +12,20 @@
     "dist"
   ],
   "scripts": {
-    "publica": "npx tsc && npm publish --access public"
+    "build": "tsc",
+    "publica": "tsc && npm publish --access public",
+    "jsdoc2markdown": "jsdoc2md --files dist/index.js > README.md && cat README.leo >> README.md"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "jsdoc-to-markdown": "^8.0.0",
-    "typescript": "^5.0.4"
+    "@playwright/test": "^1.43.1",
+    "jsdoc-to-markdown": "^8.0.1",
+    "typescript": "^5.4.5"
   },
   "dependencies": {
-    "@playwright/test": "^1.33.0"
+    "@lcrespilho/playwright-utils": "^1.0.3",
+    "zod": "^3.23.6"
   }
 }

@@ -1,9 +1,3 @@
-# Playwright fixtures for dataLayer, collects_ga3 and collects_ga4
-
-Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page) is the producer and the Node Playwright Test is the consumer. Every time the Page produces a message (window.dataLayer.push, or GA-Universal/GA4 network request), the consumer's subscribers callbacks are called.
-
-# API
-
 <a name="PubSub"></a>
 
 ## PubSub
@@ -11,10 +5,10 @@ Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/
 
 * [PubSub](#PubSub)
     * [new PubSub()](#new_PubSub_new)
-    * [.subscribe(subscriber)](#PubSub_subscribe)
-    * [.unsubscribe(subscriber)](#PubSub_unsubscribe)
-    * [.publish(message)](#PubSub_publish)
-    * [.waitForMessage([config])](#PubSub_waitForMessage) ⇒ <code>Promise.&lt;Message&gt;</code>
+    * [.subscribe(subscriber)](#PubSub+subscribe)
+    * [.unsubscribe(subscriber)](#PubSub+unsubscribe)
+    * [.publish(message)](#PubSub+publish)
+    * [.waitForMessage([config])](#PubSub+waitForMessage) ⇒ <code>Promise.&lt;Message&gt;</code>
 
 <a name="new_PubSub_new"></a>
 
@@ -24,7 +18,7 @@ is the producer and the Node Playwright Test is the consumer. Every time the Pag
 a message (window.dataLayer.push, or GA-Universal/GA4 network request), the consumer's
 subscribers callbacks are called.
 
-<a name="PubSub_subscribe"></a>
+<a name="PubSub+subscribe"></a>
 
 ### pubSub.subscribe(subscriber)
 Subscribe for messages. Used by the consumer.
@@ -35,7 +29,7 @@ Subscribe for messages. Used by the consumer.
 | --- | --- | --- |
 | subscriber | <code>function</code> | callback function to be executed once the message arrives |
 
-<a name="PubSub_unsubscribe"></a>
+<a name="PubSub+unsubscribe"></a>
 
 ### pubSub.unsubscribe(subscriber)
 Unsubscribe from messages. Used by the consumer.
@@ -46,7 +40,7 @@ Unsubscribe from messages. Used by the consumer.
 | --- | --- | --- |
 | subscriber | <code>function</code> | reference to a callback function previously subscribed |
 
-<a name="PubSub_publish"></a>
+<a name="PubSub+publish"></a>
 
 ### pubSub.publish(message)
 Publish messages. Used by the producer.
@@ -57,7 +51,7 @@ Publish messages. Used by the producer.
 | --- | --- | --- |
 | message | <code>Message</code> | message published. |
 
-<a name="PubSub_waitForMessage"></a>
+<a name="PubSub+waitForMessage"></a>
 
 ### pubSub.waitForMessage([config]) ⇒ <code>Promise.&lt;Message&gt;</code>
 Returns a promise that will be resolved when a message matching `WaitForMessageOptions` is found,
@@ -70,33 +64,9 @@ or rejected if `WaitForMessageOptions.timeout` is reached. Used by the consumer.
 | --- | --- |
 | [config] | <code>WaitForMessageOptions</code> | 
 
-<hr>
+---
 
-# Examples
-
-## Example 1
-
-```ts
-import { expect } from '@playwright/test';
-import { test } from '@lcrespilho/playwright-fixtures';
-
-test('GA4 page_view on https://ga-dev-tools.google/ga4/enhanced-ecommerce/', async ({ page, collects_ga4 }) => {
-  let dummy = false;  
-  collects_ga4.subscribe(() => dummy = true)
-  const [_, page_view] = await Promise.all([
-    page.goto('https://ga-dev-tools.google/ga4/enhanced-ecommerce/'),
-    collects_ga4.waitForMessage({
-      timeout: 10000,
-      regex: /page_view/
-    }),
-  ]);
-  expect(page_view).toBeDefined();
-  expect(collects_ga4.messages.length).toBe(1);
-  expect(dummy).toBeTruthy();
-});
-```
-
-#### How to publish to npm registry
+## How to publish to npm registry
 
 https://www.youtube.com/watch?v=Nh9xW2-ZOEU
 
