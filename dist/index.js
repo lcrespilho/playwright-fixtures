@@ -59,7 +59,7 @@ class PubSub {
                 else if ('matchObject' in config) {
                     try {
                         // Used for test dataLayer subobjects
-                        // expect(message as DatalayerMessage).toMatchObject(config.matchObject)
+                        (0, test_1.expect)(message).toMatchObject(config.matchObject);
                     }
                     catch (error) {
                         return;
