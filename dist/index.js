@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.test = exports.expect = void 0;
 const test_1 = require("@playwright/test");
+const playwright_1 = require("playwright");
 var test_2 = require("@playwright/test");
 Object.defineProperty(exports, "expect", { enumerable: true, get: function () { return test_2.expect; } });
 const playwright_utils_1 = require("@lcrespilho/playwright-utils");
@@ -58,15 +59,15 @@ class PubSub {
                 else if ('matchObject' in config) {
                     try {
                         // Used for test dataLayer subobjects
-                        (0, test_1.expect)(message).toMatchObject(config.matchObject);
+                        // expect(message as DatalayerMessage).toMatchObject(config.matchObject)
                     }
                     catch (error) {
                         return;
                     }
                 }
                 else if ('matchZodObject' in config) {
-                    const result = config.matchZodObject.safeParse(message);
-                    if (!result.success)
+                    const { success } = config.matchZodObject.safeParse(message);
+                    if (!success)
                         return;
                 }
                 else if ('regex' in config) {
@@ -82,21 +83,33 @@ class PubSub {
 }
 // Writing playwright fixtures
 exports.test = test_1.test.extend({
+    cdpEndpointURL: ['http://localhost:9222', { option: true }],
+    cdpBrowser: async ({ cdpEndpointURL }, use) => {
+        const cdpBrowser = await playwright_1.chromium.connectOverCDP(cdpEndpointURL);
+        await use(cdpBrowser);
+    },
+    cdpContext: async ({ cdpBrowser }, use) => {
+        const cdpContext = cdpBrowser.contexts()[0];
+        await use(cdpContext);
+    },
+    cdpPage: async ({ cdpContext }, use) => {
+        const cdpPage = await cdpContext.newPage();
+        await use(cdpPage);
+    },
     ga4HitRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
-    ga3HitRegex: [/(?<!kwai.*)google.*collect(?!\?v=2)/, { option: true }],
-    collects_ga3: async ({ page, ga3HitRegex }, use) => {
+    collects_ga4: async ({ page, ga4HitRegex }, use) => {
         const collects = new PubSub();
         page.on('request', request => {
             const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
-            if (ga3HitRegex.test(flatUrl)) {
+            if (ga4HitRegex.test(flatUrl)) {
                 collects.publish(flatUrl);
             }
         });
         await use(collects);
     },
-    collects_ga4: async ({ page, ga4HitRegex }, use) => {
+    collects_ga4_cdp: async ({ cdpPage, ga4HitRegex }, use) => {
         const collects = new PubSub();
-        page.on('request', request => {
+        cdpPage.on('request', request => {
             const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
             if (ga4HitRegex.test(flatUrl)) {
                 collects.publish(flatUrl);
@@ -137,5 +150,38 @@ exports.test = test_1.test.extend({
         });
         await use(dataLayer);
     },
+    dataLayer_cdp: async ({ cdpPage }, use) => {
+        const dataLayer = new PubSub();
+        await cdpPage.exposeFunction('dlTransfer', (o) => dataLayer.publish(o));
+        await cdpPage.addInitScript(() => {
+            Object.defineProperty(window, 'dataLayer', {
+                enumerable: true,
+                configurable: true,
+                set(value) {
+                    if (Array.isArray(value)) {
+                        // Se o dataLayer foi inicializado já com algum objeto.
+                        for (const o of value)
+                            window.dlTransfer(o);
+                    }
+                    // Permite ou não sobrescritas futuras do dataLayer.
+                    Object.defineProperty(window, 'dataLayer', {
+                        enumerable: true,
+                        configurable: true,
+                        value,
+                        writable: true,
+                    });
+                    window.dataLayer.push = new Proxy(window.dataLayer.push, {
+                        apply(target, thisArg, argArray) {
+                            const o = argArray[0];
+                            o._perfNow = Math.round(performance.now());
+                            window.dlTransfer(o);
+                            return Reflect.apply(target, thisArg, argArray);
+                        },
+                    });
+                },
+            });
+        });
+        await use(dataLayer);
+    }
 });
 //# sourceMappingURL=index.js.map

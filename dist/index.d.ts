@@ -1,3 +1,4 @@
+import { Browser, Page, BrowserContext } from 'playwright';
 export { expect } from '@playwright/test';
 import { ZodTypeAny } from 'zod';
 declare global {
@@ -73,9 +74,17 @@ declare class PubSub<TMessage extends DatalayerMessage | GAHitMessage, TWaitForM
     waitForMessage(config: TWaitForMessageOptions): Promise<TMessage>;
 }
 type PageFixtures = {
-    collects_ga3: PubSub<GAHitMessage, WaitForGAMessageOptions>;
     collects_ga4: PubSub<GAHitMessage, WaitForGAMessageOptions>;
     dataLayer: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>;
+};
+type CDPFixtures = {
+    cdpBrowser: Browser;
+    cdpContext: BrowserContext;
+    cdpPage: Page;
+};
+type CDPPageFixtures = {
+    collects_ga4_cdp: PubSub<GAHitMessage, WaitForGAMessageOptions>;
+    dataLayer_cdp: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>;
 };
 export type FixturesOptions = {
     /**
@@ -83,8 +92,9 @@ export type FixturesOptions = {
      */
     ga4HitRegex: RegExp;
     /**
-     * Regex that matches a GA3 hit. Default: /(?<!kwai.*)google.*collect(?!\\?v=2)/
+     * A CDP websocket endpoint or http url to connect to. For example http://localhost:9222/
+     * or ws://127.0.0.1:9222/devtools/browser/387adf4c-243f-4051-a181-46798f4a46f4.
      */
-    ga3HitRegex: RegExp;
+    cdpEndpointURL: string;
 };
-export declare const test: import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & PageFixtures & FixturesOptions, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>;
+export declare const test: import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & PageFixtures & FixturesOptions & CDPFixtures & CDPPageFixtures, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>;
