@@ -120,7 +120,6 @@ class PubSub<
 }
 
 type PageFixtures = {
-  collects_ga3: PubSub<GAHitMessage, WaitForGAMessageOptions>
   collects_ga4: PubSub<GAHitMessage, WaitForGAMessageOptions>
   dataLayer: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>
 }
@@ -130,27 +129,12 @@ export type FixturesOptions = {
    * Regex that matches a GA4 hit. Default: /(?<!kwai.*)google.*collect\\?v=2/
    */
   ga4HitRegex: RegExp
-  /**
-   * Regex that matches a GA3 hit. Default: /(?<!kwai.*)google.*collect(?!\\?v=2)/
-   */
-  ga3HitRegex: RegExp
 }
 
 // Writing playwright fixtures
 
 export const test = base.extend<PageFixtures & FixturesOptions>({
   ga4HitRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
-  ga3HitRegex: [/(?<!kwai.*)google.*collect(?!\?v=2)/, { option: true }],
-  collects_ga3: async ({ page, ga3HitRegex }, use) => {
-    const collects = new PubSub<GAHitMessage, WaitForGAMessageOptions>()
-    page.on('request', request => {
-      const flatUrl = flatRequestUrl(request)
-      if (ga3HitRegex.test(flatUrl)) {
-        collects.publish(flatUrl)
-      }
-    })
-    await use(collects)
-  },
   collects_ga4: async ({ page, ga4HitRegex }, use) => {
     const collects = new PubSub<GAHitMessage, WaitForGAMessageOptions>()
     page.on('request', request => {
