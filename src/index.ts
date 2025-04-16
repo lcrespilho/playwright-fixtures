@@ -66,6 +66,7 @@ class PubSub<
   subscribe(subscriber: Subscriber<TMessage>) {
     this.subscribers.add(subscriber)
   }
+
   /**
    * Unsubscribe from messages. Called by the consumer.
    *
@@ -74,6 +75,7 @@ class PubSub<
   unsubscribe(subscriber: Subscriber<TMessage>) {
     this.subscribers.delete(subscriber)
   }
+
   /**
    * Publish messages. Called by the producer.
    *
@@ -83,6 +85,7 @@ class PubSub<
     this.messages.push(message)
     for (const subscriber of this.subscribers) subscriber(message)
   }
+
   /**
    * Returns a promise that will be resolved when a message matching `TWaitForMessageOptions` is found,
    * or rejected if `TWaitForMessageOptions.timeout` is reached. Called by the consumer.
@@ -103,8 +106,8 @@ class PubSub<
             return
           }
         } else if ('matchZodObject' in config) {
-          const result = config.matchZodObject.safeParse(message as DatalayerMessage)
-          if (!result.success) return
+          const { success } = config.matchZodObject.safeParse(message as DatalayerMessage)
+          if (!success) return
         } else if ('regex' in config) {
           if (!config.regex.test(message as GAHitMessage)) return
         }
