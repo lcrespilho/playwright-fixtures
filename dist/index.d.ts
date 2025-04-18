@@ -36,7 +36,6 @@ type WaitForDatalayerMessageOptionsZodMatchObject = {
     matchZodObject: ZodTypeAny;
 };
 type WaitForDatalayerMessageOptions = WaitForDatalayerMessageOptionsMatchObject | WaitForDatalayerMessageOptionsPredicate | WaitForDatalayerMessageOptionsZodMatchObject;
-type Subscriber<TMessage> = (msg: TMessage) => void;
 /**
  * Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
  * is the producer and the Node Playwright Test is the consumer. Every time the Page produces
@@ -52,19 +51,21 @@ declare class PubSub<TMessage extends DatalayerMessage | GAHitMessage, TWaitForM
      *
      * @param subscriber callback function to be executed once the message arrives
      */
-    subscribe(subscriber: Subscriber<TMessage>): void;
+    private subscribe;
     /**
      * Unsubscribe from messages. Called by the consumer.
      *
      * @param subscriber reference to a callback function previously subscribed
      */
-    unsubscribe(subscriber: Subscriber<TMessage>): void;
+    private unsubscribe;
     /**
      * Publish messages. Called by the producer.
+     * Obs: you are not supposed to call this function on user/test code. It's an
+     * internal function that I could not hide enough. :)
      *
      * @param message message published.
      */
-    publish(message: TMessage): void;
+    _publish(message: TMessage): void;
     /**
      * Returns a promise that will be resolved when a message matching `TWaitForMessageOptions` is found,
      * or rejected if `TWaitForMessageOptions.timeout` is reached. Called by the consumer.

@@ -1,6 +1,6 @@
 {
   "name": "@lcrespilho/playwright-fixtures",
-  "version": "3.0.4-dev.2",
+  "version": "3.0.4-dev.11",
   "description": "Playwright fixtures for dataLayer, collects_ga3 and collects_ga4",
   "repository": {
     "type": "git",
@@ -13,7 +13,13 @@
   ],
   "scripts": {
     "build": "tsc",
-    "publica": "tsc && npm publish --access public",
+    "publish-prod-patch": "npm version patch --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag latest",
+    "publish-prod-minor": "npm version minor --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag latest",
+    "publish-prod-major": "npm version major --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag latest",
+    "publish-dev-patch": "npm version prepatch --preid dev --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag next",
+    "publish-dev-minor": "npm version preminor --preid dev --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag next",
+    "publish-dev-major": "npm version premajor --preid dev --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag next",
+    "publish-dev-prerelease": "npm version prerelease --preid dev --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag next",
     "jsdoc2markdown": "jsdoc2md --files dist/index.js > README.md && cat README.leo >> README.md"
   },
   "keywords": [],

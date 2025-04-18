@@ -33,10 +33,12 @@ class PubSub {
     }
     /**
      * Publish messages. Called by the producer.
+     * Obs: you are not supposed to call this function on user/test code. It's an
+     * internal function that I could not hide enough. :)
      *
      * @param message message published.
      */
-    publish(message) {
+    _publish(message) {
         this.messages.push(message);
         for (const subscriber of this.subscribers)
             subscriber(message);
@@ -101,7 +103,7 @@ exports.test = test_1.test.extend({
         page.on('request', request => {
             const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
             if (ga4HitRegex.test(flatUrl)) {
-                collects.publish(flatUrl);
+                collects._publish(flatUrl);
             }
         });
         await use(collects);
@@ -111,28 +113,25 @@ exports.test = test_1.test.extend({
         cdpPage.on('request', request => {
             const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
             if (ga4HitRegex.test(flatUrl)) {
-                collects.publish(flatUrl);
+                collects._publish(flatUrl);
             }
         });
         await use(collects);
     },
     dataLayer: async ({ page }, use) => {
         const dataLayer = new PubSub();
-        await page.exposeFunction('dlTransfer', (o) => dataLayer.publish(o));
+        await page.exposeFunction('dlTransfer', (o) => dataLayer._publish(o));
         await page.addInitScript(() => {
             Object.defineProperty(window, 'dataLayer', {
                 enumerable: true,
                 configurable: true,
                 set(value) {
-                    if (Array.isArray(value)) {
-                        // Se o dataLayer foi inicializado já com algum objeto.
-                        for (const o of value)
-                            window.dlTransfer(o);
-                    }
-                    // Permite ou não sobrescritas futuras do dataLayer.
+                    if (!Array.isArray(value))
+                        throw new Error('dataLayer was supposed to be an array. Instead it is:', value);
+                    value.forEach(window.dlTransfer); // Se o dataLayer for inicializado já com algum objeto.
                     Object.defineProperty(window, 'dataLayer', {
                         enumerable: true,
-                        configurable: true,
+                        configurable: true, // Permite sobrescritas futuras do dataLayer.
                         value,
                         writable: true,
                     });
@@ -151,23 +150,18 @@ exports.test = test_1.test.extend({
     },
     dataLayer_cdp: async ({ cdpPage }, use) => {
         const dataLayer = new PubSub();
-        await cdpPage.exposeFunction('dlTransfer', (o) => dataLayer.publish(o));
+        await cdpPage.exposeFunction('dlTransfer', (o) => dataLayer._publish(o));
         await cdpPage.addInitScript(() => {
-            console.log('>> playwright-fixtures');
-            debugger;
             Object.defineProperty(window, 'dataLayer', {
                 enumerable: true,
                 configurable: true,
                 set(value) {
-                    if (Array.isArray(value)) {
-                        // Se o dataLayer foi inicializado já com algum objeto.
-                        for (const o of value)
-                            window.dlTransfer(o);
-                    }
-                    // Permite ou não sobrescritas futuras do dataLayer.
+                    if (!Array.isArray(value))
+                        throw new Error('dataLayer was supposed to be an array. Instead it is:', value);
+                    value.forEach(window.dlTransfer); // Se o dataLayer for inicializado já com algum objeto.
                     Object.defineProperty(window, 'dataLayer', {
                         enumerable: true,
-                        configurable: true,
+                        configurable: true, // Permite sobrescritas futuras do dataLayer.
                         value,
                         writable: true,
                     });

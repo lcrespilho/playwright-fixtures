@@ -63,7 +63,7 @@ class PubSub<
    *
    * @param subscriber callback function to be executed once the message arrives
    */
-  subscribe(subscriber: Subscriber<TMessage>) {
+  private subscribe(subscriber: Subscriber<TMessage>) {
     this.subscribers.add(subscriber)
   }
 
@@ -72,16 +72,18 @@ class PubSub<
    *
    * @param subscriber reference to a callback function previously subscribed
    */
-  unsubscribe(subscriber: Subscriber<TMessage>) {
+  private unsubscribe(subscriber: Subscriber<TMessage>) {
     this.subscribers.delete(subscriber)
   }
 
   /**
    * Publish messages. Called by the producer.
+   * Obs: you are not supposed to call this function on user/test code. It's an
+   * internal function that I could not hide enough. :)
    *
    * @param message message published.
    */
-  publish(message: TMessage) {
+  _publish(message: TMessage) {
     this.messages.push(message)
     for (const subscriber of this.subscribers) subscriber(message)
   }
@@ -165,7 +167,7 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
     page.on('request', request => {
       const flatUrl = flatRequestUrl(request)
       if (ga4HitRegex.test(flatUrl)) {
-        collects.publish(flatUrl)
+        collects._publish(flatUrl)
       }
     })
     await use(collects)
@@ -175,27 +177,24 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
     cdpPage.on('request', request => {
       const flatUrl = flatRequestUrl(request)
       if (ga4HitRegex.test(flatUrl)) {
-        collects.publish(flatUrl)
+        collects._publish(flatUrl)
       }
     })
     await use(collects)
   },
   dataLayer: async ({ page }, use) => {
     const dataLayer = new PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>()
-    await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer.publish(o))
+    await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer._publish(o))
     await page.addInitScript(() => {
       Object.defineProperty(window, 'dataLayer', {
         enumerable: true,
         configurable: true,
         set(value: DatalayerMessage[]) {
-          if (Array.isArray(value)) {
-            // Se o dataLayer foi inicializado já com algum objeto.
-            for (const o of value) window.dlTransfer(o)
-          }
-          // Permite ou não sobrescritas futuras do dataLayer.
+          if (!Array.isArray(value)) throw new Error('dataLayer was supposed to be an array. Instead it is:', value)
+          value.forEach(window.dlTransfer) // Se o dataLayer for inicializado já com algum objeto.
           Object.defineProperty(window, 'dataLayer', {
             enumerable: true,
-            configurable: true,
+            configurable: true, // Permite sobrescritas futuras do dataLayer.
             value,
             writable: true,
           })
@@ -214,20 +213,17 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
   },
   dataLayer_cdp: async ({ cdpPage }, use) => {
     const dataLayer = new PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>()
-    await cdpPage.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer.publish(o))
+    await cdpPage.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer._publish(o))
     await cdpPage.addInitScript(() => {
       Object.defineProperty(window, 'dataLayer', {
         enumerable: true,
         configurable: true,
         set(value: DatalayerMessage[]) {
-          if (Array.isArray(value)) {
-            // Se o dataLayer foi inicializado já com algum objeto.
-            for (const o of value) window.dlTransfer(o)
-          }
-          // Permite ou não sobrescritas futuras do dataLayer.
+          if (!Array.isArray(value)) throw new Error('dataLayer was supposed to be an array. Instead it is:', value)
+          value.forEach(window.dlTransfer) // Se o dataLayer for inicializado já com algum objeto.
           Object.defineProperty(window, 'dataLayer', {
             enumerable: true,
-            configurable: true,
+            configurable: true, // Permite sobrescritas futuras do dataLayer.
             value,
             writable: true,
           })
