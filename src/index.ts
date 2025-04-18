@@ -1,5 +1,4 @@
-import { test as base, expect } from '@playwright/test'
-import { chromium, Browser, Page, BrowserContext } from 'playwright'
+import { test as base, expect, chromium, Browser, Page, BrowserContext } from '@playwright/test'
 export { expect } from '@playwright/test'
 import { ZodTypeAny } from 'zod'
 import { flatRequestUrl } from '@lcrespilho/playwright-utils'
@@ -244,5 +243,5 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
       })
     })
     await use(dataLayer)
-  }
+  },
 })

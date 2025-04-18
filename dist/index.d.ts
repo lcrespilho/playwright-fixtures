@@ -1,4 +1,4 @@
-import { Browser, Page, BrowserContext } from 'playwright';
+import { Browser, Page, BrowserContext } from '@playwright/test';
 export { expect } from '@playwright/test';
 import { ZodTypeAny } from 'zod';
 declare global {

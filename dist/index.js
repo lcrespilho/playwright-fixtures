@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.test = exports.expect = void 0;
 const test_1 = require("@playwright/test");
-const playwright_1 = require("playwright");
 var test_2 = require("@playwright/test");
 Object.defineProperty(exports, "expect", { enumerable: true, get: function () { return test_2.expect; } });
 const playwright_utils_1 = require("@lcrespilho/playwright-utils");
@@ -85,7 +84,7 @@ class PubSub {
 exports.test = test_1.test.extend({
     cdpEndpointURL: ['http://localhost:9222', { option: true }],
     cdpBrowser: async ({ cdpEndpointURL }, use) => {
-        const cdpBrowser = await playwright_1.chromium.connectOverCDP(cdpEndpointURL);
+        const cdpBrowser = await test_1.chromium.connectOverCDP(cdpEndpointURL);
         await use(cdpBrowser);
     },
     cdpContext: async ({ cdpBrowser }, use) => {
@@ -182,6 +181,6 @@ exports.test = test_1.test.extend({
             });
         });
         await use(dataLayer);
-    }
+    },
 });
 //# sourceMappingURL=index.js.map
