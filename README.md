@@ -11,7 +11,7 @@ subscribers callbacks are called.
 * [PubSub](#PubSub)
     * [.subscribe(subscriber)](#PubSub+subscribe)
     * [.unsubscribe(subscriber)](#PubSub+unsubscribe)
-    * [.publish(message)](#PubSub+publish)
+    * [._publish(message)](#PubSub+_publish)
     * [.waitForMessage()](#PubSub+waitForMessage) ⇒
 
 <a name="PubSub+subscribe"></a>
@@ -36,10 +36,12 @@ Unsubscribe from messages. Called by the consumer.
 | --- | --- |
 | subscriber | reference to a callback function previously subscribed |
 
-<a name="PubSub+publish"></a>
+<a name="PubSub+_publish"></a>
 
-### pubSub.publish(message)
+### pubSub.\_publish(message)
 Publish messages. Called by the producer.
+Obs: you are not supposed to call this function on user/test code. It's an
+internal function that I could not hide enough. :)
 
 **Kind**: instance method of [<code>PubSub</code>](#PubSub)  
 
