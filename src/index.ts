@@ -216,6 +216,8 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
     const dataLayer = new PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>()
     await cdpPage.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer.publish(o))
     await cdpPage.addInitScript(() => {
+      console.log('>> playwright-fixtures')
+      debugger
       Object.defineProperty(window, 'dataLayer', {
         enumerable: true,
         configurable: true,

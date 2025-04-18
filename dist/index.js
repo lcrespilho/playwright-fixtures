@@ -153,6 +153,8 @@ exports.test = test_1.test.extend({
         const dataLayer = new PubSub();
         await cdpPage.exposeFunction('dlTransfer', (o) => dataLayer.publish(o));
         await cdpPage.addInitScript(() => {
+            console.log('>> playwright-fixtures');
+            debugger;
             Object.defineProperty(window, 'dataLayer', {
                 enumerable: true,
                 configurable: true,
