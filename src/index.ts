@@ -43,11 +43,35 @@ type WaitForDatalayerMessageOptions =
   | WaitForDatalayerMessageOptionsPredicate
   | WaitForDatalayerMessageOptionsZodMatchObject
 type Subscriber<TMessage> = (msg: TMessage) => void
+type PageFixtures = {
+  collects_ga4: PubSub<GAHitMessage, WaitForGAMessageOptions>
+  dataLayer: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>
+}
+type CDPFixtures = {
+  cdpBrowser: Browser
+  cdpContext: BrowserContext
+  cdpPage: Page
+}
+type CDPPageFixtures = {
+  collects_ga4_cdp: PubSub<GAHitMessage, WaitForGAMessageOptions>
+  dataLayer_cdp: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>
+}
+export type FixturesOptions = {
+  /**
+   * Regex that matches a GA4 hit. Default: /(?<!kwai.*)google.*collect\\?v=2/
+   */
+  ga4HitRegex: RegExp
+  /**
+   * A CDP websocket endpoint or http url to connect to. For example http://localhost:9222/
+   * or ws://127.0.0.1:9222/devtools/browser/387adf4c-243f-4051-a181-46798f4a46f4.
+   */
+  cdpEndpointURL: string
+}
 
 /**
  * Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
  * is the producer and the Node Playwright Test is the consumer. Every time the Page produces
- * a message (window.dataLayer.push, or GA-Universal/GA4 network request), the consumer's
+ * a message (window.dataLayer.push, or GA4 network request), the consumer's
  * subscribers callbacks are called.
  */
 class PubSub<
@@ -56,25 +80,6 @@ class PubSub<
 > {
   private subscribers: Set<Subscriber<TMessage>> = new Set()
   messages: TMessage[] = []
-  constructor() {}
-
-  /**
-   * Subscribe for messages. Called by the consumer.
-   *
-   * @param subscriber callback function to be executed once the message arrives
-   */
-  private subscribe(subscriber: Subscriber<TMessage>) {
-    this.subscribers.add(subscriber)
-  }
-
-  /**
-   * Unsubscribe from messages. Called by the consumer.
-   *
-   * @param subscriber reference to a callback function previously subscribed
-   */
-  private unsubscribe(subscriber: Subscriber<TMessage>) {
-    this.subscribers.delete(subscriber)
-  }
 
   /**
    * Publish messages. Called by the producer.
@@ -83,7 +88,7 @@ class PubSub<
    *
    * @param message message published.
    */
-  _publish(message: TMessage) {
+  publish(message: TMessage) {
     this.messages.push(message)
     for (const subscriber of this.subscribers) subscriber(message)
   }
@@ -113,37 +118,12 @@ class PubSub<
         } else if ('regex' in config) {
           if (!config.regex.test(message as GAHitMessage)) return
         }
-        this.unsubscribe(subscriber)
+        this.subscribers.delete(subscriber)
         resolve(message)
       }
-      this.subscribe(subscriber)
+      this.subscribers.add(subscriber)
     })
   }
-}
-
-type PageFixtures = {
-  collects_ga4: PubSub<GAHitMessage, WaitForGAMessageOptions>
-  dataLayer: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>
-}
-type CDPFixtures = {
-  cdpBrowser: Browser
-  cdpContext: BrowserContext
-  cdpPage: Page
-}
-type CDPPageFixtures = {
-  collects_ga4_cdp: PubSub<GAHitMessage, WaitForGAMessageOptions>
-  dataLayer_cdp: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>
-}
-export type FixturesOptions = {
-  /**
-   * Regex that matches a GA4 hit. Default: /(?<!kwai.*)google.*collect\\?v=2/
-   */
-  ga4HitRegex: RegExp
-  /**
-   * A CDP websocket endpoint or http url to connect to. For example http://localhost:9222/
-   * or ws://127.0.0.1:9222/devtools/browser/387adf4c-243f-4051-a181-46798f4a46f4.
-   */
-  cdpEndpointURL: string
 }
 
 // Writing playwright fixtures
@@ -167,7 +147,7 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
     page.on('request', request => {
       const flatUrl = flatRequestUrl(request)
       if (ga4HitRegex.test(flatUrl)) {
-        collects._publish(flatUrl)
+        collects.publish(flatUrl)
       }
     })
     await use(collects)
@@ -177,14 +157,14 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
     cdpPage.on('request', request => {
       const flatUrl = flatRequestUrl(request)
       if (ga4HitRegex.test(flatUrl)) {
-        collects._publish(flatUrl)
+        collects.publish(flatUrl)
       }
     })
     await use(collects)
   },
   dataLayer: async ({ page }, use) => {
     const dataLayer = new PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>()
-    await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer._publish(o))
+    await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer.publish(o))
     await page.addInitScript(() => {
       Object.defineProperty(window, 'dataLayer', {
         enumerable: true,
@@ -213,7 +193,7 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
   },
   dataLayer_cdp: async ({ cdpPage }, use) => {
     const dataLayer = new PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>()
-    await cdpPage.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer._publish(o))
+    await cdpPage.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer.publish(o))
     await cdpPage.addInitScript(() => {
       Object.defineProperty(window, 'dataLayer', {
         enumerable: true,
