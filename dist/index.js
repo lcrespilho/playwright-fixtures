@@ -1,81 +1,29 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.test = exports.expect = void 0;
+exports.expect = exports.test = void 0;
 const test_1 = require("@playwright/test");
-var test_2 = require("@playwright/test");
-Object.defineProperty(exports, "expect", { enumerable: true, get: function () { return test_2.expect; } });
+Object.defineProperty(exports, "expect", { enumerable: true, get: function () { return test_1.expect; } });
 const playwright_utils_1 = require("@lcrespilho/playwright-utils");
-/**
- * Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
- * is the producer and the Node Playwright Test is the consumer. Every time the Page produces
- * a message (window.dataLayer.push, or GA4 network request), the consumer's
- * subscribers callbacks are called.
- */
-class PubSub {
-    subscribers = new Set();
-    messages = [];
-    /**
-     * Publish messages. Called by the producer.
-     * Obs: you are not supposed to call this function on user/test code. It's an
-     * internal function that I could not hide enough. :)
-     *
-     * @param message message published.
-     */
-    publish(message) {
-        this.messages.push(message);
-        for (const subscriber of this.subscribers)
-            subscriber(message);
-    }
-    /**
-     * Returns a promise that will be resolved when a message matching `TWaitForMessageOptions` is found,
-     * or rejected if `TWaitForMessageOptions.timeout` is reached. Called by the consumer.
-     *
-     * @return message published.
-     */
-    waitForMessage(config) {
-        return new Promise((resolve, reject) => {
-            setTimeout(reject, config.timeout, config.timeoutMessage || 'timeout');
-            const subscriber = message => {
-                if ('predicate' in config) {
-                    if (!config.predicate(message))
-                        return;
-                }
-                else if ('matchObject' in config) {
-                    try {
-                        // Used for test dataLayer subobjects
-                        (0, test_1.expect)(message).toMatchObject(config.matchObject);
-                    }
-                    catch (error) {
-                        return;
-                    }
-                }
-                else if ('matchZodObject' in config) {
-                    const { success } = config.matchZodObject.safeParse(message);
-                    if (!success)
-                        return;
-                }
-                else if ('regex' in config) {
-                    if (!config.regex.test(message))
-                        return;
-                }
-                this.subscribers.delete(subscriber);
-                resolve(message);
-            };
-            this.subscribers.add(subscriber);
-        });
-    }
-}
 // Writing playwright fixtures
 exports.test = test_1.test.extend({
-    ga4HitRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
+    // Provide default values for optional options
     browserType: ['default', { option: true }],
+    gaRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
+    facebookRegex: [/facebook\.com\/tr/, { option: true }],
+    // --- Browser/Context/Page Setup ---
     context: async ({ browserType, context }, use) => {
         if (browserType === 'default') {
             await use(context);
         }
         else if (browserType === 'cdp') {
-            const browser = await test_1.chromium.connectOverCDP('http://localhost:9222');
-            await use(browser.contexts()[0]);
+            try {
+                const browser = await test_1.chromium.connectOverCDP('http://localhost:9222');
+                await use(browser.contexts()[0]);
+            }
+            catch (error) {
+                console.error('Failed to connect over CDP. Ensure Chrome is running with --remote-debugging-port=9222');
+                throw error;
+            }
         }
     },
     page: async ({ browserType, context, page }, use) => {
@@ -86,19 +34,37 @@ exports.test = test_1.test.extend({
             await use(page);
         }
     },
-    collects_ga4: async ({ page, ga4HitRegex }, use) => {
-        const collects = new PubSub();
-        page.on('request', request => {
+    ga: async ({ page, gaRegex: gaRegex }, use) => {
+        const pubSub = new PubSub();
+        const requestListener = (request) => {
             const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
-            if (ga4HitRegex.test(flatUrl)) {
-                collects.publish(flatUrl);
+            if (gaRegex.test(flatUrl)) {
+                pubSub.publish(flatUrl);
             }
-        });
-        await use(collects);
+        };
+        page.on('request', requestListener);
+        const fixture = {
+            messages: pubSub.messages,
+            waitForMessage: (options) => {
+                let predicate;
+                if ('predicate' in options) {
+                    predicate = options.predicate;
+                }
+                else if ('regex' in options) {
+                    predicate = (msg) => options.regex.test(msg);
+                }
+                else {
+                    throw new Error(`Invalid options for waitForMessage: requires 'predicate' or 'regex'.`);
+                }
+                return pubSub.waitForMessage(predicate, options);
+            },
+        };
+        await use(fixture);
+        page.off('request', requestListener);
     },
     dataLayer: async ({ page }, use) => {
-        const dataLayer = new PubSub();
-        await page.exposeFunction('dlTransfer', (o) => dataLayer.publish(o));
+        const pubSub = new PubSub();
+        await page.exposeFunction('dlTransfer', (o) => pubSub.publish(o));
         await page.addInitScript(() => {
             Object.defineProperty(window, 'dataLayer', {
                 enumerable: true,
@@ -124,7 +90,98 @@ exports.test = test_1.test.extend({
                 },
             });
         });
-        await use(dataLayer);
+        const fixture = {
+            messages: pubSub.messages,
+            waitForMessage: (options) => {
+                let predicate;
+                if ('predicate' in options) {
+                    predicate = options.predicate;
+                }
+                else if ('matchObject' in options) {
+                    predicate = (msg) => {
+                        try {
+                            (0, test_1.expect)(msg).toMatchObject(options.matchObject);
+                            return true;
+                        }
+                        catch {
+                            return false;
+                        }
+                    };
+                }
+                else if ('matchZodObject' in options) {
+                    predicate = (msg) => options.matchZodObject.safeParse(msg).success;
+                }
+                else {
+                    throw new Error("Invalid options for waitForMessage: requires 'predicate', 'matchObject', or 'matchZodObject'.");
+                }
+                return pubSub.waitForMessage(predicate, options);
+            },
+        };
+        await use(fixture);
+    },
+    facebook: async ({ page, facebookRegex }, use) => {
+        const pubSub = new PubSub();
+        const requestListener = (request) => {
+            const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
+            if (facebookRegex.test(flatUrl)) {
+                pubSub.publish(flatUrl);
+            }
+        };
+        page.on('request', requestListener);
+        const fixture = {
+            messages: pubSub.messages,
+            waitForMessage: (options) => {
+                let predicate;
+                if ('predicate' in options) {
+                    predicate = options.predicate;
+                }
+                else if ('regex' in options) {
+                    predicate = (msg) => options.regex.test(msg);
+                }
+                else {
+                    throw new Error(`Invalid options for waitForMessage: requires 'predicate' or 'regex'.`);
+                }
+                return pubSub.waitForMessage(predicate, options);
+            },
+        };
+        await use(fixture);
+        page.off('request', requestListener);
     },
 });
+/**
+ * Generic PubSub class responsible only for managing messages and subscribers.
+ * The page publishes messages. Playwright code consumes them.
+ */
+class PubSub {
+    subscribers = new Set();
+    messages = [];
+    /**
+     * Publish messages. Called internally by fixtures.
+     */
+    publish(message) {
+        this.messages.push(message);
+        this.subscribers.forEach(subscriber => subscriber(message)); // Notify all subscribers
+    }
+    /**
+     * Generic method to wait for a message based on a predicate function.
+     * Returns a promise that resolves with the message or rejects on timeout.
+     */
+    waitForMessage(predicate, options) {
+        return new Promise((resolve, reject) => {
+            // set up subscriber and timeout
+            const timeoutId = setTimeout(() => {
+                this.subscribers.delete(subscriber); // Clean up subscriber on timeout
+                reject(new Error(options.timeoutMessage || `Timeout waiting for message after ${options.timeout}ms`));
+            }, options.timeout);
+            const subscriber = message => {
+                if (predicate(message)) {
+                    clearTimeout(timeoutId); // Clear timeout
+                    this.subscribers.delete(subscriber); // Clean up subscriber
+                    resolve(message);
+                }
+            };
+            this.subscribers.add(subscriber);
+        });
+    }
+}
 //# sourceMappingURL=index.js.map
