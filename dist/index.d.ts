@@ -36,44 +36,6 @@ type WaitForDatalayerMessageOptionsZodMatchObject = {
     matchZodObject: ZodTypeAny;
 };
 type WaitForDatalayerMessageOptions = WaitForDatalayerMessageOptionsMatchObject | WaitForDatalayerMessageOptionsPredicate | WaitForDatalayerMessageOptionsZodMatchObject;
-/**
- * Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
- * is the producer and the Node Playwright Test is the consumer. Every time the Page produces
- * a message (window.dataLayer.push, or GA-Universal/GA4 network request), the consumer's
- * subscribers callbacks are called.
- */
-declare class PubSub<TMessage extends DatalayerMessage | GAHitMessage, TWaitForMessageOptions extends WaitForDatalayerMessageOptions | WaitForGAMessageOptions> {
-    private subscribers;
-    messages: TMessage[];
-    constructor();
-    /**
-     * Subscribe for messages. Called by the consumer.
-     *
-     * @param subscriber callback function to be executed once the message arrives
-     */
-    private subscribe;
-    /**
-     * Unsubscribe from messages. Called by the consumer.
-     *
-     * @param subscriber reference to a callback function previously subscribed
-     */
-    private unsubscribe;
-    /**
-     * Publish messages. Called by the producer.
-     * Obs: you are not supposed to call this function on user/test code. It's an
-     * internal function that I could not hide enough. :)
-     *
-     * @param message message published.
-     */
-    _publish(message: TMessage): void;
-    /**
-     * Returns a promise that will be resolved when a message matching `TWaitForMessageOptions` is found,
-     * or rejected if `TWaitForMessageOptions.timeout` is reached. Called by the consumer.
-     *
-     * @return message published.
-     */
-    waitForMessage(config: TWaitForMessageOptions): Promise<TMessage>;
-}
 type PageFixtures = {
     collects_ga4: PubSub<GAHitMessage, WaitForGAMessageOptions>;
     dataLayer: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>;
@@ -98,4 +60,29 @@ export type FixturesOptions = {
      */
     cdpEndpointURL: string;
 };
+/**
+ * Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
+ * is the producer and the Node Playwright Test is the consumer. Every time the Page produces
+ * a message (window.dataLayer.push, or GA4 network request), the consumer's
+ * subscribers callbacks are called.
+ */
+declare class PubSub<TMessage extends DatalayerMessage | GAHitMessage, TWaitForMessageOptions extends WaitForDatalayerMessageOptions | WaitForGAMessageOptions> {
+    private subscribers;
+    messages: TMessage[];
+    /**
+     * Publish messages. Called by the producer.
+     * Obs: you are not supposed to call this function on user/test code. It's an
+     * internal function that I could not hide enough. :)
+     *
+     * @param message message published.
+     */
+    publish(message: TMessage): void;
+    /**
+     * Returns a promise that will be resolved when a message matching `TWaitForMessageOptions` is found,
+     * or rejected if `TWaitForMessageOptions.timeout` is reached. Called by the consumer.
+     *
+     * @return message published.
+     */
+    waitForMessage(config: TWaitForMessageOptions): Promise<TMessage>;
+}
 export declare const test: import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & PageFixtures & FixturesOptions & CDPFixtures & CDPPageFixtures, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>;

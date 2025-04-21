@@ -8,29 +8,12 @@ const playwright_utils_1 = require("@lcrespilho/playwright-utils");
 /**
  * Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
  * is the producer and the Node Playwright Test is the consumer. Every time the Page produces
- * a message (window.dataLayer.push, or GA-Universal/GA4 network request), the consumer's
+ * a message (window.dataLayer.push, or GA4 network request), the consumer's
  * subscribers callbacks are called.
  */
 class PubSub {
     subscribers = new Set();
     messages = [];
-    constructor() { }
-    /**
-     * Subscribe for messages. Called by the consumer.
-     *
-     * @param subscriber callback function to be executed once the message arrives
-     */
-    subscribe(subscriber) {
-        this.subscribers.add(subscriber);
-    }
-    /**
-     * Unsubscribe from messages. Called by the consumer.
-     *
-     * @param subscriber reference to a callback function previously subscribed
-     */
-    unsubscribe(subscriber) {
-        this.subscribers.delete(subscriber);
-    }
     /**
      * Publish messages. Called by the producer.
      * Obs: you are not supposed to call this function on user/test code. It's an
@@ -38,7 +21,7 @@ class PubSub {
      *
      * @param message message published.
      */
-    _publish(message) {
+    publish(message) {
         this.messages.push(message);
         for (const subscriber of this.subscribers)
             subscriber(message);
@@ -75,10 +58,10 @@ class PubSub {
                     if (!config.regex.test(message))
                         return;
                 }
-                this.unsubscribe(subscriber);
+                this.subscribers.delete(subscriber);
                 resolve(message);
             };
-            this.subscribe(subscriber);
+            this.subscribers.add(subscriber);
         });
     }
 }
@@ -103,7 +86,7 @@ exports.test = test_1.test.extend({
         page.on('request', request => {
             const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
             if (ga4HitRegex.test(flatUrl)) {
-                collects._publish(flatUrl);
+                collects.publish(flatUrl);
             }
         });
         await use(collects);
@@ -113,14 +96,14 @@ exports.test = test_1.test.extend({
         cdpPage.on('request', request => {
             const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
             if (ga4HitRegex.test(flatUrl)) {
-                collects._publish(flatUrl);
+                collects.publish(flatUrl);
             }
         });
         await use(collects);
     },
     dataLayer: async ({ page }, use) => {
         const dataLayer = new PubSub();
-        await page.exposeFunction('dlTransfer', (o) => dataLayer._publish(o));
+        await page.exposeFunction('dlTransfer', (o) => dataLayer.publish(o));
         await page.addInitScript(() => {
             Object.defineProperty(window, 'dataLayer', {
                 enumerable: true,
@@ -150,7 +133,7 @@ exports.test = test_1.test.extend({
     },
     dataLayer_cdp: async ({ cdpPage }, use) => {
         const dataLayer = new PubSub();
-        await cdpPage.exposeFunction('dlTransfer', (o) => dataLayer._publish(o));
+        await cdpPage.exposeFunction('dlTransfer', (o) => dataLayer.publish(o));
         await cdpPage.addInitScript(() => {
             Object.defineProperty(window, 'dataLayer', {
                 enumerable: true,
