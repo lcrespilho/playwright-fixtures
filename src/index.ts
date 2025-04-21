@@ -1,4 +1,4 @@
-import { test as base, expect, chromium, Browser, Page, BrowserContext } from '@playwright/test'
+import { test as base, expect, chromium } from '@playwright/test'
 export { expect } from '@playwright/test'
 import { ZodTypeAny } from 'zod'
 import { flatRequestUrl } from '@lcrespilho/playwright-utils'
@@ -47,25 +47,16 @@ type PageFixtures = {
   collects_ga4: PubSub<GAHitMessage, WaitForGAMessageOptions>
   dataLayer: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>
 }
-type CDPFixtures = {
-  cdpBrowser: Browser
-  cdpContext: BrowserContext
-  cdpPage: Page
-}
-type CDPPageFixtures = {
-  collects_ga4_cdp: PubSub<GAHitMessage, WaitForGAMessageOptions>
-  dataLayer_cdp: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>
-}
 export type FixturesOptions = {
   /**
    * Regex that matches a GA4 hit. Default: /(?<!kwai.*)google.*collect\\?v=2/
    */
   ga4HitRegex: RegExp
   /**
-   * A CDP websocket endpoint or http url to connect to. For example http://localhost:9222/
-   * or ws://127.0.0.1:9222/devtools/browser/387adf4c-243f-4051-a181-46798f4a46f4.
+   * Indicates if connecting to Chrome with remote debugging port enabled ("cdp") or opening
+   * the Playwright's default browser ("default" behavior). For example http://localhost:9222/.
    */
-  cdpEndpointURL: string
+  browserType: 'default' | 'cdp'
 }
 
 /**
@@ -127,34 +118,27 @@ class PubSub<
 }
 
 // Writing playwright fixtures
-export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & CDPPageFixtures>({
-  cdpEndpointURL: ['http://localhost:9222', { option: true }],
-  cdpBrowser: async ({ cdpEndpointURL }, use) => {
-    const cdpBrowser = await chromium.connectOverCDP(cdpEndpointURL)
-    await use(cdpBrowser)
-  },
-  cdpContext: async ({ cdpBrowser }, use) => {
-    const cdpContext = cdpBrowser.contexts()[0]
-    await use(cdpContext)
-  },
-  cdpPage: async ({ cdpContext }, use) => {
-    const cdpPage = await cdpContext.newPage()
-    await use(cdpPage)
-  },
+export const test = base.extend<PageFixtures & FixturesOptions>({
   ga4HitRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
+  browserType: ['default', { option: true }],
+  context: async ({ browserType, context }, use) => {
+    if (browserType === 'default') {
+      await use(context)
+    } else if (browserType === 'cdp') {
+      const browser = await chromium.connectOverCDP('http://localhost:9222')
+      await use(browser.contexts()[0])
+    }
+  },
+  page: async ({ browserType, context, page }, use) => {
+    if (browserType === 'cdp') {
+      await use(await context.newPage())
+    } else {
+      await use(page)
+    }
+  },
   collects_ga4: async ({ page, ga4HitRegex }, use) => {
     const collects = new PubSub<GAHitMessage, WaitForGAMessageOptions>()
     page.on('request', request => {
-      const flatUrl = flatRequestUrl(request)
-      if (ga4HitRegex.test(flatUrl)) {
-        collects.publish(flatUrl)
-      }
-    })
-    await use(collects)
-  },
-  collects_ga4_cdp: async ({ cdpPage, ga4HitRegex }, use) => {
-    const collects = new PubSub<GAHitMessage, WaitForGAMessageOptions>()
-    cdpPage.on('request', request => {
       const flatUrl = flatRequestUrl(request)
       if (ga4HitRegex.test(flatUrl)) {
         collects.publish(flatUrl)
@@ -166,35 +150,6 @@ export const test = base.extend<PageFixtures & FixturesOptions & CDPFixtures & C
     const dataLayer = new PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>()
     await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer.publish(o))
     await page.addInitScript(() => {
-      Object.defineProperty(window, 'dataLayer', {
-        enumerable: true,
-        configurable: true,
-        set(value: DatalayerMessage[]) {
-          if (!Array.isArray(value)) throw new Error('dataLayer was supposed to be an array. Instead it is:', value)
-          value.forEach(window.dlTransfer) // Se o dataLayer for inicializado já com algum objeto.
-          Object.defineProperty(window, 'dataLayer', {
-            enumerable: true,
-            configurable: true, // Permite sobrescritas futuras do dataLayer.
-            value,
-            writable: true,
-          })
-          window.dataLayer.push = new Proxy(window.dataLayer.push, {
-            apply(target, thisArg, argArray) {
-              const o: DatalayerMessage = argArray[0]
-              o._perfNow = Math.round(performance.now())
-              window.dlTransfer(o)
-              return Reflect.apply(target, thisArg, argArray)
-            },
-          })
-        },
-      })
-    })
-    await use(dataLayer)
-  },
-  dataLayer_cdp: async ({ cdpPage }, use) => {
-    const dataLayer = new PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>()
-    await cdpPage.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer.publish(o))
-    await cdpPage.addInitScript(() => {
       Object.defineProperty(window, 'dataLayer', {
         enumerable: true,
         configurable: true,

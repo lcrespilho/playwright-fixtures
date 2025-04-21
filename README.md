@@ -3,42 +3,18 @@
 ## PubSub
 Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
 is the producer and the Node Playwright Test is the consumer. Every time the Page produces
-a message (window.dataLayer.push, or GA-Universal/GA4 network request), the consumer's
+a message (window.dataLayer.push, or GA4 network request), the consumer's
 subscribers callbacks are called.
 
 **Kind**: global class  
 
 * [PubSub](#PubSub)
-    * [.subscribe(subscriber)](#PubSub+subscribe)
-    * [.unsubscribe(subscriber)](#PubSub+unsubscribe)
-    * [._publish(message)](#PubSub+_publish)
+    * [.publish(message)](#PubSub+publish)
     * [.waitForMessage()](#PubSub+waitForMessage) ⇒
 
-<a name="PubSub+subscribe"></a>
+<a name="PubSub+publish"></a>
 
-### pubSub.subscribe(subscriber)
-Subscribe for messages. Called by the consumer.
-
-**Kind**: instance method of [<code>PubSub</code>](#PubSub)  
-
-| Param | Description |
-| --- | --- |
-| subscriber | callback function to be executed once the message arrives |
-
-<a name="PubSub+unsubscribe"></a>
-
-### pubSub.unsubscribe(subscriber)
-Unsubscribe from messages. Called by the consumer.
-
-**Kind**: instance method of [<code>PubSub</code>](#PubSub)  
-
-| Param | Description |
-| --- | --- |
-| subscriber | reference to a callback function previously subscribed |
-
-<a name="PubSub+_publish"></a>
-
-### pubSub.\_publish(message)
+### pubSub.publish(message)
 Publish messages. Called by the producer.
 Obs: you are not supposed to call this function on user/test code. It's an
 internal function that I could not hide enough. :)

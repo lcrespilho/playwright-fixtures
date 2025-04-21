@@ -1,4 +1,3 @@
-import { Browser, Page, BrowserContext } from '@playwright/test';
 export { expect } from '@playwright/test';
 import { ZodTypeAny } from 'zod';
 declare global {
@@ -40,25 +39,16 @@ type PageFixtures = {
     collects_ga4: PubSub<GAHitMessage, WaitForGAMessageOptions>;
     dataLayer: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>;
 };
-type CDPFixtures = {
-    cdpBrowser: Browser;
-    cdpContext: BrowserContext;
-    cdpPage: Page;
-};
-type CDPPageFixtures = {
-    collects_ga4_cdp: PubSub<GAHitMessage, WaitForGAMessageOptions>;
-    dataLayer_cdp: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>;
-};
 export type FixturesOptions = {
     /**
      * Regex that matches a GA4 hit. Default: /(?<!kwai.*)google.*collect\\?v=2/
      */
     ga4HitRegex: RegExp;
     /**
-     * A CDP websocket endpoint or http url to connect to. For example http://localhost:9222/
-     * or ws://127.0.0.1:9222/devtools/browser/387adf4c-243f-4051-a181-46798f4a46f4.
+     * Indicates if connecting to Chrome with remote debugging port enabled ("cdp") or opening
+     * the Playwright's default browser ("default" behavior). For example http://localhost:9222/.
      */
-    cdpEndpointURL: string;
+    browserType: 'default' | 'cdp';
 };
 /**
  * Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
@@ -85,4 +75,4 @@ declare class PubSub<TMessage extends DatalayerMessage | GAHitMessage, TWaitForM
      */
     waitForMessage(config: TWaitForMessageOptions): Promise<TMessage>;
 }
-export declare const test: import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & PageFixtures & FixturesOptions & CDPFixtures & CDPPageFixtures, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>;
+export declare const test: import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & PageFixtures & FixturesOptions, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>;
