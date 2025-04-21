@@ -1,5 +1,4 @@
-import { test as base, expect, chromium } from '@playwright/test'
-export { expect } from '@playwright/test'
+import { test as base, expect, chromium, Request } from '@playwright/test'
 import { ZodTypeAny } from 'zod'
 import { flatRequestUrl } from '@lcrespilho/playwright-utils'
 
@@ -10,48 +9,71 @@ declare global {
     dlTransfer: (arg0: DatalayerMessage) => void
   }
 }
-export type GAHitMessage = string
-export type DatalayerMessage = Record<string, any>
-type WaitForGAMessageOptionsRegex = {
+type Subscriber<TMessage> = (msg: TMessage) => void
+type BaseWaitForMessageOptions = {
   timeout: number
   timeoutMessage?: string
+}
+type BaseFixture<TMessage, TOptions> = {
+  messages: TMessage[]
+  waitForMessage: (options: TOptions) => Promise<TMessage>
+}
+
+// GA specific types
+export type GAMessage = string
+type WaitForGAMessageOptionsRegex = BaseWaitForMessageOptions & {
   regex: RegExp
 }
-type WaitForGAMessageOptionsPredicate = {
-  timeout: number
-  timeoutMessage?: string
-  predicate: (msg: GAHitMessage) => boolean
+type WaitForGAMessageOptionsPredicate = BaseWaitForMessageOptions & {
+  predicate: (msg: GAMessage) => boolean
 }
-type WaitForGAMessageOptions = WaitForGAMessageOptionsRegex | WaitForGAMessageOptionsPredicate
-type WaitForDatalayerMessageOptionsMatchObject = {
-  timeout: number
-  timeoutMessage?: string
+export type WaitForGAMessageOptions = WaitForGAMessageOptionsRegex | WaitForGAMessageOptionsPredicate
+type GAFixture = BaseFixture<GAMessage, WaitForGAMessageOptions>
+
+// Datalayer specific types
+export type DatalayerMessage = Record<string, any>
+type WaitForDatalayerMessageOptionsMatchObject = BaseWaitForMessageOptions & {
   matchObject: DatalayerMessage
 }
-type WaitForDatalayerMessageOptionsPredicate = {
-  timeout: number
-  timeoutMessage?: string
-  predicate: (msg: DatalayerMessage) => boolean
-}
-type WaitForDatalayerMessageOptionsZodMatchObject = {
-  timeout: number
-  timeoutMessage?: string
+type WaitForDatalayerMessageOptionsZodMatchObject = BaseWaitForMessageOptions & {
   matchZodObject: ZodTypeAny
 }
-type WaitForDatalayerMessageOptions =
+type WaitForDatalayerMessageOptionsPredicate = BaseWaitForMessageOptions & {
+  predicate: (msg: DatalayerMessage) => boolean
+}
+export type WaitForDatalayerMessageOptions =
   | WaitForDatalayerMessageOptionsMatchObject
   | WaitForDatalayerMessageOptionsPredicate
   | WaitForDatalayerMessageOptionsZodMatchObject
-type Subscriber<TMessage> = (msg: TMessage) => void
-type PageFixtures = {
-  collects_ga4: PubSub<GAHitMessage, WaitForGAMessageOptions>
-  dataLayer: PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>
+type DatalayerFixture = BaseFixture<DatalayerMessage, WaitForDatalayerMessageOptions>
+
+// Facebook specific types (Example)
+export type FacebookMessage = string
+type WaitForFacebookMessageOptionsRegex = BaseWaitForMessageOptions & {
+  regex: RegExp
 }
+type WaitForFacebookMessageOptionsPredicate = BaseWaitForMessageOptions & {
+  predicate: (msg: FacebookMessage) => boolean
+}
+export type WaitForFacebookMessageOptions = WaitForFacebookMessageOptionsRegex | WaitForFacebookMessageOptionsPredicate
+type FacebookFixture = BaseFixture<FacebookMessage, WaitForFacebookMessageOptions>
+
+// Combined PageFixtures type
+type PageFixtures = {
+  ga: GAFixture
+  dataLayer: DatalayerFixture
+  facebook: FacebookFixture
+}
+
 export type FixturesOptions = {
   /**
-   * Regex that matches a GA4 hit. Default: /(?<!kwai.*)google.*collect\\?v=2/
+   * Regex that matches a GA hit. Default: /(?<!kwai.*)google.*collect\?v=2/
    */
-  ga4HitRegex: RegExp
+  gaRegex: RegExp
+  /**
+   * Regex that matches a Facebook Pixel hit. Default: /facebook\.com\/tr/
+   */
+  facebookRegex: RegExp
   /**
    * Indicates if connecting to Chrome with remote debugging port enabled ("cdp") or opening
    * the Playwright's default browser ("default" behavior). For example http://localhost:9222/.
@@ -59,74 +81,25 @@ export type FixturesOptions = {
   browserType: 'default' | 'cdp'
 }
 
-/**
- * Utilizes the Observer Pattern, where the [Page](https://playwright.dev/docs/api/class-page)
- * is the producer and the Node Playwright Test is the consumer. Every time the Page produces
- * a message (window.dataLayer.push, or GA4 network request), the consumer's
- * subscribers callbacks are called.
- */
-class PubSub<
-  TMessage extends DatalayerMessage | GAHitMessage,
-  TWaitForMessageOptions extends WaitForDatalayerMessageOptions | WaitForGAMessageOptions
-> {
-  private subscribers: Set<Subscriber<TMessage>> = new Set()
-  messages: TMessage[] = []
-
-  /**
-   * Publish messages. Called by the producer.
-   * Obs: you are not supposed to call this function on user/test code. It's an
-   * internal function that I could not hide enough. :)
-   *
-   * @param message message published.
-   */
-  publish(message: TMessage) {
-    this.messages.push(message)
-    for (const subscriber of this.subscribers) subscriber(message)
-  }
-
-  /**
-   * Returns a promise that will be resolved when a message matching `TWaitForMessageOptions` is found,
-   * or rejected if `TWaitForMessageOptions.timeout` is reached. Called by the consumer.
-   *
-   * @return message published.
-   */
-  waitForMessage(config: TWaitForMessageOptions): Promise<TMessage> {
-    return new Promise((resolve, reject) => {
-      setTimeout(reject, config.timeout, config.timeoutMessage || 'timeout')
-      const subscriber: Subscriber<TMessage> = message => {
-        if ('predicate' in config) {
-          if (!config.predicate(message as GAHitMessage & DatalayerMessage)) return
-        } else if ('matchObject' in config) {
-          try {
-            // Used for test dataLayer subobjects
-            expect(message as DatalayerMessage).toMatchObject(config.matchObject)
-          } catch (error) {
-            return
-          }
-        } else if ('matchZodObject' in config) {
-          const { success } = config.matchZodObject.safeParse(message as DatalayerMessage)
-          if (!success) return
-        } else if ('regex' in config) {
-          if (!config.regex.test(message as GAHitMessage)) return
-        }
-        this.subscribers.delete(subscriber)
-        resolve(message)
-      }
-      this.subscribers.add(subscriber)
-    })
-  }
-}
-
 // Writing playwright fixtures
 export const test = base.extend<PageFixtures & FixturesOptions>({
-  ga4HitRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
+  // Provide default values for optional options
   browserType: ['default', { option: true }],
+  gaRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
+  facebookRegex: [/facebook\.com\/tr/, { option: true }],
+
+  // --- Browser/Context/Page Setup ---
   context: async ({ browserType, context }, use) => {
     if (browserType === 'default') {
       await use(context)
     } else if (browserType === 'cdp') {
-      const browser = await chromium.connectOverCDP('http://localhost:9222')
-      await use(browser.contexts()[0])
+      try {
+        const browser = await chromium.connectOverCDP('http://localhost:9222')
+        await use(browser.contexts()[0])
+      } catch (error) {
+        console.error('Failed to connect over CDP. Ensure Chrome is running with --remote-debugging-port=9222')
+        throw error
+      }
     }
   },
   page: async ({ browserType, context, page }, use) => {
@@ -136,19 +109,35 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
       await use(page)
     }
   },
-  collects_ga4: async ({ page, ga4HitRegex }, use) => {
-    const collects = new PubSub<GAHitMessage, WaitForGAMessageOptions>()
-    page.on('request', request => {
+  ga: async ({ page, gaRegex: gaRegex }, use) => {
+    const pubSub = new PubSub<GAMessage>()
+    const requestListener = (request: Request) => {
       const flatUrl = flatRequestUrl(request)
-      if (ga4HitRegex.test(flatUrl)) {
-        collects.publish(flatUrl)
+      if (gaRegex.test(flatUrl)) {
+        pubSub.publish(flatUrl)
       }
-    })
-    await use(collects)
+    }
+    page.on('request', requestListener)
+    const fixture: GAFixture = {
+      messages: pubSub.messages,
+      waitForMessage: (options: WaitForGAMessageOptions): Promise<GAMessage> => {
+        let predicate: (msg: GAMessage) => boolean
+        if ('predicate' in options) {
+          predicate = options.predicate
+        } else if ('regex' in options) {
+          predicate = (msg: GAMessage) => options.regex.test(msg)
+        } else {
+          throw new Error(`Invalid options for waitForMessage: requires 'predicate' or 'regex'.`)
+        }
+        return pubSub.waitForMessage(predicate, options)
+      },
+    }
+    await use(fixture)
+    page.off('request', requestListener)
   },
   dataLayer: async ({ page }, use) => {
-    const dataLayer = new PubSub<DatalayerMessage, WaitForDatalayerMessageOptions>()
-    await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => dataLayer.publish(o))
+    const pubSub = new PubSub<DatalayerMessage>()
+    await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => pubSub.publish(o))
     await page.addInitScript(() => {
       Object.defineProperty(window, 'dataLayer', {
         enumerable: true,
@@ -173,6 +162,103 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
         },
       })
     })
-    await use(dataLayer)
+    const fixture: DatalayerFixture = {
+      messages: pubSub.messages,
+      waitForMessage: (options: WaitForDatalayerMessageOptions): Promise<DatalayerMessage> => {
+        let predicate: (msg: DatalayerMessage) => boolean
+
+        if ('predicate' in options) {
+          predicate = options.predicate
+        } else if ('matchObject' in options) {
+          predicate = (msg: DatalayerMessage) => {
+            try {
+              expect(msg).toMatchObject(options.matchObject)
+              return true
+            } catch {
+              return false
+            }
+          }
+        } else if ('matchZodObject' in options) {
+          predicate = (msg: DatalayerMessage) => options.matchZodObject.safeParse(msg).success
+        } else {
+          throw new Error(
+            "Invalid options for waitForMessage: requires 'predicate', 'matchObject', or 'matchZodObject'."
+          )
+        }
+
+        return pubSub.waitForMessage(predicate, options)
+      },
+    }
+
+    await use(fixture)
+  },
+  facebook: async ({ page, facebookRegex }, use) => {
+    const pubSub = new PubSub<FacebookMessage>()
+    const requestListener = (request: Request) => {
+      const flatUrl = flatRequestUrl(request)
+      if (facebookRegex.test(flatUrl)) {
+        pubSub.publish(flatUrl)
+      }
+    }
+    page.on('request', requestListener)
+    const fixture: FacebookFixture = {
+      messages: pubSub.messages,
+      waitForMessage: (options: WaitForFacebookMessageOptions): Promise<FacebookMessage> => {
+        let predicate: (msg: FacebookMessage) => boolean
+        if ('predicate' in options) {
+          predicate = options.predicate
+        } else if ('regex' in options) {
+          predicate = (msg: FacebookMessage) => options.regex.test(msg)
+        } else {
+          throw new Error(`Invalid options for waitForMessage: requires 'predicate' or 'regex'.`)
+        }
+        return pubSub.waitForMessage(predicate, options)
+      },
+    }
+    await use(fixture)
+    page.off('request', requestListener)
   },
 })
+
+/**
+ * Generic PubSub class responsible only for managing messages and subscribers.
+ * The page publishes messages. Playwright code consumes them.
+ */
+class PubSub<TMessage> {
+  private subscribers: Set<Subscriber<TMessage>> = new Set()
+  messages: TMessage[] = []
+
+  /**
+   * Publish messages. Called internally by fixtures.
+   */
+  publish(message: TMessage) {
+    this.messages.push(message)
+    this.subscribers.forEach(subscriber => subscriber(message)) // Notify all subscribers
+  }
+
+  /**
+   * Generic method to wait for a message based on a predicate function.
+   * Returns a promise that resolves with the message or rejects on timeout.
+   */
+  waitForMessage(predicate: (msg: TMessage) => boolean, options: BaseWaitForMessageOptions): Promise<TMessage> {
+    return new Promise((resolve, reject) => {
+      // set up subscriber and timeout
+      const timeoutId = setTimeout(() => {
+        this.subscribers.delete(subscriber) // Clean up subscriber on timeout
+        reject(new Error(options.timeoutMessage || `Timeout waiting for message after ${options.timeout}ms`))
+      }, options.timeout)
+
+      const subscriber: Subscriber<TMessage> = message => {
+        if (predicate(message)) {
+          clearTimeout(timeoutId) // Clear timeout
+          this.subscribers.delete(subscriber) // Clean up subscriber
+          resolve(message)
+        }
+      }
+
+      this.subscribers.add(subscriber)
+    })
+  }
+}
+
+export { expect } // Re-export expect
