@@ -1,4 +1,4 @@
-import { test as base, expect, chromium, Request } from '@playwright/test'
+import { test as base, expect, chromium, Request, type Page } from '@playwright/test'
 import { ZodTypeAny } from 'zod'
 import { flatRequestUrl } from '@lcrespilho/playwright-utils'
 
@@ -102,14 +102,20 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
       }
     }
   },
-  page: async ({ browserType, context, page }, use) => {
+  page: async ({ browserType, context, page, baseURL }, use) => {
     if (browserType === 'cdp') {
-      await use(await context.newPage())
+      const newPage = await context.newPage()
+      const originalGoto = newPage.goto.bind(page)
+      newPage.goto = async (url: Parameters<Page['goto']>[0], options?: Parameters<Page['goto']>[1]) => {
+        const fullUrl = baseURL ? new URL(url, baseURL).href : url
+        return originalGoto(fullUrl, options)
+      }
+      await use(newPage)
     } else {
       await use(page)
     }
   },
-  ga: async ({ page, gaRegex: gaRegex }, use) => {
+  ga: async ({ page, gaRegex }, use) => {
     const pubSub = new PubSub<GAMessage>()
     const requestListener = (request: Request) => {
       const flatUrl = flatRequestUrl(request)

@@ -26,15 +26,21 @@ exports.test = test_1.test.extend({
             }
         }
     },
-    page: async ({ browserType, context, page }, use) => {
+    page: async ({ browserType, context, page, baseURL }, use) => {
         if (browserType === 'cdp') {
-            await use(await context.newPage());
+            const newPage = await context.newPage();
+            const originalGoto = newPage.goto.bind(page);
+            newPage.goto = async (url, options) => {
+                const fullUrl = baseURL ? new URL(url, baseURL).href : url;
+                return originalGoto(fullUrl, options);
+            };
+            await use(newPage);
         }
         else {
             await use(page);
         }
     },
-    ga: async ({ page, gaRegex: gaRegex }, use) => {
+    ga: async ({ page, gaRegex }, use) => {
         const pubSub = new PubSub();
         const requestListener = (request) => {
             const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
