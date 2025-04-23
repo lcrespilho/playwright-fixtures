@@ -94,6 +94,7 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
       await use(context)
     } else if (browserType === 'cdp') {
       try {
+        await context.close()
         const browser = await chromium.connectOverCDP('http://localhost:9222')
         await use(browser.contexts()[0])
       } catch (error) {
@@ -104,8 +105,9 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
   },
   page: async ({ browserType, context, page, baseURL }, use) => {
     if (browserType === 'cdp') {
+      await page.close()
       const newPage = await context.newPage()
-      const originalGoto = newPage.goto.bind(page)
+      const originalGoto = newPage.goto.bind(newPage)
       newPage.goto = async (url: Parameters<Page['goto']>[0], options?: Parameters<Page['goto']>[1]) => {
         const fullUrl = baseURL ? new URL(url, baseURL).href : url
         return originalGoto(fullUrl, options)
