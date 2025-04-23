@@ -93,8 +93,12 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
     if (browserType === 'default') {
       await use(context)
     } else if (browserType === 'cdp') {
+      if (context.pages().length === 0) {
+        await context.close()
+        await context.browser()?.close()
+      }
       try {
-        const browser = await chromium.connectOverCDP('http://localhost:9222')
+        const browser = await chromium.connectOverCDP('http://127.0.0.1:9222')
         await use(browser.contexts()[0])
       } catch (error) {
         console.error('Failed to connect over CDP. Ensure Chrome is running with --remote-debugging-port=9222')
@@ -104,6 +108,9 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
   },
   page: async ({ browserType, context, page, baseURL }, use) => {
     if (browserType === 'cdp') {
+      if (page.url() === 'about:blank') {
+        await page.close()
+      }
       const newPage = await context.newPage()
       const originalGoto = newPage.goto.bind(newPage)
       newPage.goto = async (url: Parameters<Page['goto']>[0], options?: Parameters<Page['goto']>[1]) => {
