@@ -16,8 +16,12 @@ exports.test = test_1.test.extend({
             await use(context);
         }
         else if (browserType === 'cdp') {
+            if (context.pages().length === 0) {
+                await context.close();
+                await context.browser()?.close();
+            }
             try {
-                const browser = await test_1.chromium.connectOverCDP('http://localhost:9222');
+                const browser = await test_1.chromium.connectOverCDP('http://127.0.0.1:9222');
                 await use(browser.contexts()[0]);
             }
             catch (error) {
@@ -28,6 +32,9 @@ exports.test = test_1.test.extend({
     },
     page: async ({ browserType, context, page, baseURL }, use) => {
         if (browserType === 'cdp') {
+            if (page.url() === 'about:blank') {
+                await page.close();
+            }
             const newPage = await context.newPage();
             const originalGoto = newPage.goto.bind(newPage);
             newPage.goto = async (url, options) => {
