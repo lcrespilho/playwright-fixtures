@@ -95,7 +95,6 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
     } else if (browserType === 'cdp') {
       if (context.pages().length === 0) {
         await context.close()
-        await context.browser()?.close()
       }
       try {
         const browser = await chromium.connectOverCDP('http://127.0.0.1:9222')

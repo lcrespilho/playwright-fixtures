@@ -18,7 +18,6 @@ exports.test = test_1.test.extend({
         else if (browserType === 'cdp') {
             if (context.pages().length === 0) {
                 await context.close();
-                await context.browser()?.close();
             }
             try {
                 const browser = await test_1.chromium.connectOverCDP('http://127.0.0.1:9222');
