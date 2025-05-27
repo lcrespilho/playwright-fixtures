@@ -1,6 +1,6 @@
 {
   "name": "@lcrespilho/playwright-fixtures",
-  "version": "5.0.4",
+  "version": "5.1.0",
   "description": "Playwright fixtures for dataLayer, collects_ga3 and collects_ga4",
   "repository": {
     "type": "git",
