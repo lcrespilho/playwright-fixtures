@@ -164,10 +164,11 @@ export const test = base.extend<PageFixtures & FixturesOptions>({
             writable: true,
           })
           window.dataLayer.push = new Proxy(window.dataLayer.push, {
-            apply(target, thisArg, argArray) {
-              const o: DatalayerMessage = argArray[0]
-              o._perfNow = Math.round(performance.now())
-              window.dlTransfer(o)
+            apply(target, thisArg, argArray: DatalayerMessage[]) {
+              argArray.forEach((o: DatalayerMessage) => {
+                o._perfNow = Math.round(performance.now())
+                window.dlTransfer(o)
+              })
               return Reflect.apply(target, thisArg, argArray)
             },
           })
