@@ -93,9 +93,10 @@ exports.test = test_1.test.extend({
                     });
                     window.dataLayer.push = new Proxy(window.dataLayer.push, {
                         apply(target, thisArg, argArray) {
-                            const o = argArray[0];
-                            o._perfNow = Math.round(performance.now());
-                            window.dlTransfer(o);
+                            argArray.forEach((o) => {
+                                o._perfNow = Math.round(performance.now());
+                                window.dlTransfer(o);
+                            });
                             return Reflect.apply(target, thisArg, argArray);
                         },
                     });
