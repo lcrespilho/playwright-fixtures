@@ -28,7 +28,7 @@ type WaitForGAMessageOptionsPredicate = BaseWaitForMessageOptions & {
   predicate: (msg: GAMessage) => boolean
 }
 export type WaitForGAMessageOptions = WaitForGAMessageOptionsRegex | WaitForGAMessageOptionsPredicate
-type GAFixture = BaseFixture<GAMessage, WaitForGAMessageOptions>
+export type GAFixture = BaseFixture<GAMessage, WaitForGAMessageOptions>
 
 // Datalayer specific types
 export type DatalayerMessage = Record<string, any>
@@ -45,7 +45,7 @@ export type WaitForDatalayerMessageOptions =
   | WaitForDatalayerMessageOptionsMatchObject
   | WaitForDatalayerMessageOptionsPredicate
   | WaitForDatalayerMessageOptionsZodMatchObject
-type DatalayerFixture = BaseFixture<DatalayerMessage, WaitForDatalayerMessageOptions>
+export type DatalayerFixture = BaseFixture<DatalayerMessage, WaitForDatalayerMessageOptions>
 
 // Facebook specific types (Example)
 export type FacebookMessage = string
@@ -56,10 +56,10 @@ type WaitForFacebookMessageOptionsPredicate = BaseWaitForMessageOptions & {
   predicate: (msg: FacebookMessage) => boolean
 }
 export type WaitForFacebookMessageOptions = WaitForFacebookMessageOptionsRegex | WaitForFacebookMessageOptionsPredicate
-type FacebookFixture = BaseFixture<FacebookMessage, WaitForFacebookMessageOptions>
+export type FacebookFixture = BaseFixture<FacebookMessage, WaitForFacebookMessageOptions>
 
 // Combined PageFixtures type
-type PageFixtures = {
+export type PageFixtures = {
   ga: GAFixture
   dataLayer: DatalayerFixture
   facebook: FacebookFixture
