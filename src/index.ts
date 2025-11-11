@@ -1,6 +1,10 @@
-import { test as base, expect, chromium, Request, type Page } from '@playwright/test'
-import { ZodTypeAny } from 'zod'
+import { test as base, expect, chromium, Request, type Page, type BrowserContext } from '@playwright/test'
+import { ZodType } from 'zod'
 import { flatRequestUrl } from '@lcrespilho/playwright-utils'
+import { chromium as chromiumExtra } from 'playwright-extra'
+import stealthPlugin from 'puppeteer-extra-plugin-stealth'
+
+chromiumExtra.use(stealthPlugin())
 
 // TYPES
 declare global {
@@ -36,7 +40,7 @@ type WaitForDatalayerMessageOptionsMatchObject = BaseWaitForMessageOptions & {
   matchObject: DatalayerMessage
 }
 type WaitForDatalayerMessageOptionsZodMatchObject = BaseWaitForMessageOptions & {
-  matchZodObject: ZodTypeAny
+  matchZodObject: ZodType
 }
 type WaitForDatalayerMessageOptionsPredicate = BaseWaitForMessageOptions & {
   predicate: (msg: DatalayerMessage) => boolean
@@ -81,156 +85,194 @@ export type FixturesOptions = {
   browserType: 'default' | 'cdp'
 }
 
+const contextFixture = async (
+  { browserType, context }: { browserType: FixturesOptions['browserType']; context: BrowserContext },
+  use: (f: BrowserContext) => Promise<void>
+) => {
+  if (browserType === 'default') {
+    await use(context)
+  } else if (browserType === 'cdp') {
+    if (context.pages().length === 0) {
+      await context.close()
+    }
+    try {
+      const browser = await chromium.connectOverCDP('http://127.0.0.1:9222')
+      await use(browser.contexts()[0])
+    } catch (error) {
+      console.error('Failed to connect over CDP. Ensure Chrome is running with --remote-debugging-port=9222')
+      throw error
+    }
+  }
+}
+
+const pageFixture = async (
+  {
+    browserType,
+    context,
+    page,
+    baseURL,
+  }: { browserType: FixturesOptions['browserType']; context: BrowserContext; page: Page; baseURL?: string },
+  use: (f: Page) => Promise<void>
+) => {
+  if (browserType === 'cdp') {
+    if (page.url() === 'about:blank') {
+      await page.close()
+    }
+    const newPage = await context.newPage()
+    const originalGoto = newPage.goto.bind(newPage)
+    newPage.goto = async (url: Parameters<Page['goto']>[0], options?: Parameters<Page['goto']>[1]) => {
+      const fullUrl = baseURL ? new URL(url, baseURL).href : url
+      return originalGoto(fullUrl, options)
+    }
+    await use(newPage)
+  } else {
+    await use(page)
+  }
+}
+
+const gaFixture = async ({ page, gaRegex }: { page: Page; gaRegex: RegExp }, use: (f: GAFixture) => Promise<void>) => {
+  const pubSub = new PubSub<GAMessage>()
+  const requestListener = (request: Request) => {
+    const flatUrl = flatRequestUrl(request)
+    if (gaRegex.test(flatUrl)) {
+      pubSub.publish(flatUrl)
+    }
+  }
+  page.on('request', requestListener)
+  const fixture: GAFixture = {
+    messages: pubSub.messages,
+    waitForMessage: (options: WaitForGAMessageOptions): Promise<GAMessage> => {
+      let predicate: (msg: GAMessage) => boolean
+      if ('predicate' in options) {
+        predicate = options.predicate
+      } else if ('regex' in options) {
+        predicate = (msg: GAMessage) => options.regex.test(msg)
+      } else {
+        throw new Error(`Invalid options for waitForMessage: requires 'predicate' or 'regex'.`)
+      }
+      return pubSub.waitForMessage(predicate, options)
+    },
+  }
+  await use(fixture)
+  page.off('request', requestListener)
+}
+
+const dataLayerFixture = async ({ page }: { page: Page }, use: (f: DatalayerFixture) => Promise<void>) => {
+  const pubSub = new PubSub<DatalayerMessage>()
+  await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => pubSub.publish(o))
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'dataLayer', {
+      enumerable: true,
+      configurable: true,
+      set(value: DatalayerMessage[]) {
+        if (!Array.isArray(value)) throw new Error('dataLayer was supposed to be an array. Instead it is:', value)
+        value.forEach(window.dlTransfer) // Se o dataLayer for inicializado já com algum objeto.
+        Object.defineProperty(window, 'dataLayer', {
+          enumerable: true,
+          configurable: true, // Permite sobrescritas futuras do dataLayer.
+          value,
+          writable: true,
+        })
+        window.dataLayer.push = new Proxy(window.dataLayer.push, {
+          apply(target, thisArg, argArray: DatalayerMessage[]) {
+            argArray.forEach((o: DatalayerMessage) => {
+              o._perfNow = Math.round(performance.now())
+              window.dlTransfer(o)
+            })
+            return Reflect.apply(target, thisArg, argArray)
+          },
+        })
+      },
+    })
+  })
+  const fixture: DatalayerFixture = {
+    messages: pubSub.messages,
+    waitForMessage: (options: WaitForDatalayerMessageOptions): Promise<DatalayerMessage> => {
+      let predicate: (msg: DatalayerMessage) => boolean
+
+      if ('predicate' in options) {
+        predicate = options.predicate
+      } else if ('matchObject' in options) {
+        predicate = (msg: DatalayerMessage) => {
+          try {
+            expect(msg).toMatchObject(options.matchObject)
+            return true
+          } catch {
+            return false
+          }
+        }
+      } else if ('matchZodObject' in options) {
+        predicate = (msg: DatalayerMessage) => options.matchZodObject.safeParse(msg).success
+      } else {
+        throw new Error("Invalid options for waitForMessage: requires 'predicate', 'matchObject', or 'matchZodObject'.")
+      }
+
+      return pubSub.waitForMessage(predicate, options)
+    },
+  }
+
+  await use(fixture)
+}
+
+const facebookFixture = async (
+  { page, facebookRegex }: { page: Page; facebookRegex: RegExp },
+  use: (f: FacebookFixture) => Promise<void>
+) => {
+  const pubSub = new PubSub<FacebookMessage>()
+  const requestListener = (request: Request) => {
+    const flatUrl = flatRequestUrl(request)
+    if (facebookRegex.test(flatUrl)) {
+      pubSub.publish(flatUrl)
+    }
+  }
+  page.on('request', requestListener)
+  const fixture: FacebookFixture = {
+    messages: pubSub.messages,
+    waitForMessage: (options: WaitForFacebookMessageOptions): Promise<FacebookMessage> => {
+      let predicate: (msg: FacebookMessage) => boolean
+      if ('predicate' in options) {
+        predicate = options.predicate
+      } else if ('regex' in options) {
+        predicate = (msg: FacebookMessage) => options.regex.test(msg)
+      } else {
+        throw new Error(`Invalid options for waitForMessage: requires 'predicate' or 'regex'.`)
+      }
+      return pubSub.waitForMessage(predicate, options)
+    },
+  }
+  await use(fixture)
+  page.off('request', requestListener)
+}
+
 // Writing playwright fixtures
 export const test = base.extend<PageFixtures & FixturesOptions>({
-  // Provide default values for optional options
   browserType: ['default', { option: true }],
   gaRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
   facebookRegex: [/facebook\.com\/tr/, { option: true }],
+  context: contextFixture,
+  page: pageFixture,
+  ga: gaFixture,
+  dataLayer: dataLayerFixture,
+  facebook: facebookFixture,
+})
 
-  // --- Browser/Context/Page Setup ---
-  context: async ({ browserType, context }, use) => {
-    if (browserType === 'default') {
-      await use(context)
-    } else if (browserType === 'cdp') {
-      if (context.pages().length === 0) {
-        await context.close()
-      }
-      try {
-        const browser = await chromium.connectOverCDP('http://127.0.0.1:9222')
-        await use(browser.contexts()[0])
-      } catch (error) {
-        console.error('Failed to connect over CDP. Ensure Chrome is running with --remote-debugging-port=9222')
-        throw error
-      }
-    }
-  },
-  page: async ({ browserType, context, page, baseURL }, use) => {
-    if (browserType === 'cdp') {
-      if (page.url() === 'about:blank') {
-        await page.close()
-      }
-      const newPage = await context.newPage()
-      const originalGoto = newPage.goto.bind(newPage)
-      newPage.goto = async (url: Parameters<Page['goto']>[0], options?: Parameters<Page['goto']>[1]) => {
-        const fullUrl = baseURL ? new URL(url, baseURL).href : url
-        return originalGoto(fullUrl, options)
-      }
-      await use(newPage)
-    } else {
-      await use(page)
-    }
-  },
-  ga: async ({ page, gaRegex }, use) => {
-    const pubSub = new PubSub<GAMessage>()
-    const requestListener = (request: Request) => {
-      const flatUrl = flatRequestUrl(request)
-      if (gaRegex.test(flatUrl)) {
-        pubSub.publish(flatUrl)
-      }
-    }
-    page.on('request', requestListener)
-    const fixture: GAFixture = {
-      messages: pubSub.messages,
-      waitForMessage: (options: WaitForGAMessageOptions): Promise<GAMessage> => {
-        let predicate: (msg: GAMessage) => boolean
-        if ('predicate' in options) {
-          predicate = options.predicate
-        } else if ('regex' in options) {
-          predicate = (msg: GAMessage) => options.regex.test(msg)
-        } else {
-          throw new Error(`Invalid options for waitForMessage: requires 'predicate' or 'regex'.`)
-        }
-        return pubSub.waitForMessage(predicate, options)
-      },
-    }
-    await use(fixture)
-    page.off('request', requestListener)
-  },
-  dataLayer: async ({ page }, use) => {
-    const pubSub = new PubSub<DatalayerMessage>()
-    await page.exposeFunction('dlTransfer', (o: DatalayerMessage): void => pubSub.publish(o))
-    await page.addInitScript(() => {
-      Object.defineProperty(window, 'dataLayer', {
-        enumerable: true,
-        configurable: true,
-        set(value: DatalayerMessage[]) {
-          if (!Array.isArray(value)) throw new Error('dataLayer was supposed to be an array. Instead it is:', value)
-          value.forEach(window.dlTransfer) // Se o dataLayer for inicializado já com algum objeto.
-          Object.defineProperty(window, 'dataLayer', {
-            enumerable: true,
-            configurable: true, // Permite sobrescritas futuras do dataLayer.
-            value,
-            writable: true,
-          })
-          window.dataLayer.push = new Proxy(window.dataLayer.push, {
-            apply(target, thisArg, argArray: DatalayerMessage[]) {
-              argArray.forEach((o: DatalayerMessage) => {
-                o._perfNow = Math.round(performance.now())
-                window.dlTransfer(o)
-              })
-              return Reflect.apply(target, thisArg, argArray)
-            },
-          })
-        },
-      })
-    })
-    const fixture: DatalayerFixture = {
-      messages: pubSub.messages,
-      waitForMessage: (options: WaitForDatalayerMessageOptions): Promise<DatalayerMessage> => {
-        let predicate: (msg: DatalayerMessage) => boolean
-
-        if ('predicate' in options) {
-          predicate = options.predicate
-        } else if ('matchObject' in options) {
-          predicate = (msg: DatalayerMessage) => {
-            try {
-              expect(msg).toMatchObject(options.matchObject)
-              return true
-            } catch {
-              return false
-            }
-          }
-        } else if ('matchZodObject' in options) {
-          predicate = (msg: DatalayerMessage) => options.matchZodObject.safeParse(msg).success
-        } else {
-          throw new Error(
-            "Invalid options for waitForMessage: requires 'predicate', 'matchObject', or 'matchZodObject'."
-          )
-        }
-
-        return pubSub.waitForMessage(predicate, options)
-      },
-    }
-
-    await use(fixture)
-  },
-  facebook: async ({ page, facebookRegex }, use) => {
-    const pubSub = new PubSub<FacebookMessage>()
-    const requestListener = (request: Request) => {
-      const flatUrl = flatRequestUrl(request)
-      if (facebookRegex.test(flatUrl)) {
-        pubSub.publish(flatUrl)
-      }
-    }
-    page.on('request', requestListener)
-    const fixture: FacebookFixture = {
-      messages: pubSub.messages,
-      waitForMessage: (options: WaitForFacebookMessageOptions): Promise<FacebookMessage> => {
-        let predicate: (msg: FacebookMessage) => boolean
-        if ('predicate' in options) {
-          predicate = options.predicate
-        } else if ('regex' in options) {
-          predicate = (msg: FacebookMessage) => options.regex.test(msg)
-        } else {
-          throw new Error(`Invalid options for waitForMessage: requires 'predicate' or 'regex'.`)
-        }
-        return pubSub.waitForMessage(predicate, options)
-      },
-    }
-    await use(fixture)
-    page.off('request', requestListener)
-  },
+export const testStealth = base.extend<PageFixtures & FixturesOptions>({
+  browser: [
+    async ({}, use) => {
+      const browser = await chromiumExtra.launch({ headless: true })
+      await use(browser)
+      await browser.close()
+    },
+    { scope: 'worker' },
+  ],
+  browserType: ['default', { option: true }],
+  gaRegex: [/(?<!kwai.*)google.*collect\?v=2/, { option: true }],
+  facebookRegex: [/facebook\.com\/tr/, { option: true }],
+  context: contextFixture,
+  page: pageFixture,
+  ga: gaFixture,
+  dataLayer: dataLayerFixture,
+  facebook: facebookFixture,
 })
 
 /**

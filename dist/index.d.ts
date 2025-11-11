@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { ZodTypeAny } from 'zod';
+import { ZodType } from 'zod';
 declare global {
     interface Window {
         dataLayer: DatalayerMessage[];
@@ -28,7 +28,7 @@ type WaitForDatalayerMessageOptionsMatchObject = BaseWaitForMessageOptions & {
     matchObject: DatalayerMessage;
 };
 type WaitForDatalayerMessageOptionsZodMatchObject = BaseWaitForMessageOptions & {
-    matchZodObject: ZodTypeAny;
+    matchZodObject: ZodType;
 };
 type WaitForDatalayerMessageOptionsPredicate = BaseWaitForMessageOptions & {
     predicate: (msg: DatalayerMessage) => boolean;
@@ -65,4 +65,5 @@ export type FixturesOptions = {
     browserType: 'default' | 'cdp';
 };
 export declare const test: import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & PageFixtures & FixturesOptions, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>;
+export declare const testStealth: import("@playwright/test").TestType<import("@playwright/test").PlaywrightTestArgs & import("@playwright/test").PlaywrightTestOptions & PageFixtures & FixturesOptions, import("@playwright/test").PlaywrightWorkerArgs & import("@playwright/test").PlaywrightWorkerOptions>;
 export { expect };
