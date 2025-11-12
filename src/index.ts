@@ -261,7 +261,6 @@ export const testStealth = base.extend<PageFixtures & FixturesOptions>({
     async ({ launchOptions }, use) => {
       const browser = await chromiumExtra.launch(launchOptions)
       await use(browser)
-      await browser.close()
     },
     { scope: 'worker' },
   ],

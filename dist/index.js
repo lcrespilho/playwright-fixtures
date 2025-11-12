@@ -175,7 +175,6 @@ exports.testStealth = test_1.test.extend({
         async ({ launchOptions }, use) => {
             const browser = await playwright_extra_1.chromium.launch(launchOptions);
             await use(browser);
-            await browser.close();
         },
         { scope: 'worker' },
     ],
