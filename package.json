@@ -1,6 +1,6 @@
 {
   "name": "@lcrespilho/playwright-fixtures",
-  "version": "6.0.2",
+  "version": "6.1.0",
   "description": "Playwright fixtures for dataLayer, collects_ga3 and collects_ga4",
   "repository": {
     "type": "git",
@@ -20,23 +20,24 @@
     "publish-dev-minor": "npm version preminor --preid dev --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag next",
     "publish-dev-major": "npm version premajor --preid dev --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag next",
     "publish-dev-prerelease": "npm version prerelease --preid dev --no-commit-hooks --no-git-tag-version && tsc && npm publish --access public --tag next",
-    "jsdoc2markdown": "jsdoc2md --files dist/index.js > README.md && cat README.leo >> README.md"
+    "jsdoc2markdown": "jsdoc2md --files dist/index.js > README.md && cat README.leo >> README.md",
+    "pack": "tsc && npm pack"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^24.10.0",
+    "@types/node": "^25.6.0",
     "jsdoc-to-markdown": "^9.1.3",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   },
   "dependencies": {},
   "peerDependencies": {
-    "@lcrespilho/playwright-utils": "^1.8.1",
+    "@lcrespilho/playwright-utils": ">1.8.0",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "@playwright/test": "^1.56.1",
-    "puppeteer": "^24.29.1",
-    "zod": "^4.1.12"
+    "@playwright/test": ">1.56.0",
+    "puppeteer": ">24.29.0",
+    "zod": ">4.3.5"
   }
 }

@@ -1,14 +1,17 @@
 {
   "compilerOptions": {
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
+    /* Padrões Modernos */
+    "target": "ES2025", // TS 6.0 recomenda targets datados ou ESNext
     "module": "NodeNext",
-    "target": "ESNext",
-    "sourceMap": true,
+    "moduleResolution": "NodeNext", // Agora obrigatório ser explícito com NodeNext
+
+    /* Configurações de Emissão */
     "outDir": "./dist",
-    "noImplicitAny": true,
+    "sourceMap": true,
     "declaration": true,
-    "esModuleInterop": true
+    "rootDir": "./src",
+    "skipLibCheck": true,
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
