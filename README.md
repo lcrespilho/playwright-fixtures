@@ -1,3 +1,20 @@
+## Classes
+
+<dl>
+<dt><a href="#PubSub">PubSub</a></dt>
+<dd><p>Generic PubSub class responsible only for managing messages and subscribers.
+The page publishes messages. Playwright code consumes them.</p>
+</dd>
+</dl>
+
+## Functions
+
+<dl>
+<dt><a href="#flatRequestUrl">flatRequestUrl()</a></dt>
+<dd><p>Returns a flattened request URL by combining the URL and postData parameters of the given Request-like object.</p>
+</dd>
+</dl>
+
 <a name="PubSub"></a>
 
 ## PubSub
@@ -23,6 +40,12 @@ Generic method to wait for a message based on a predicate function.
 Returns a promise that resolves with the message or rejects on timeout.
 
 **Kind**: instance method of [<code>PubSub</code>](#PubSub)  
+<a name="flatRequestUrl"></a>
+
+## flatRequestUrl()
+Returns a flattened request URL by combining the URL and postData parameters of the given Request-like object.
+
+**Kind**: global function  
 ---
 
 ## How to publish to npm registry

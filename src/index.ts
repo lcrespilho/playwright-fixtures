@@ -1,6 +1,6 @@
 import { test as base, expect, chromium, Request, type Page, type BrowserContext } from '@playwright/test'
 import { ZodType } from 'zod'
-import { flatRequestUrl } from '@lcrespilho/playwright-utils'
+import { flatRequestUrl } from './flatRequestUrl'
 import { chromium as chromiumExtra } from 'playwright-extra'
 import stealthPlugin from 'puppeteer-extra-plugin-stealth'
 

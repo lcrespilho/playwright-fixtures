@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.expect = exports.testStealth = exports.test = void 0;
 const test_1 = require("@playwright/test");
 Object.defineProperty(exports, "expect", { enumerable: true, get: function () { return test_1.expect; } });
-const playwright_utils_1 = require("@lcrespilho/playwright-utils");
+const flatRequestUrl_1 = require("./flatRequestUrl");
 const playwright_extra_1 = require("playwright-extra");
 const puppeteer_extra_plugin_stealth_1 = __importDefault(require("puppeteer-extra-plugin-stealth"));
 playwright_extra_1.chromium.use((0, puppeteer_extra_plugin_stealth_1.default)());
@@ -48,7 +48,7 @@ const pageFixture = async ({ browserType, context, page, baseURL, }, use) => {
 const gaFixture = async ({ page, gaRegex }, use) => {
     const pubSub = new PubSub();
     const requestListener = (request) => {
-        const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
+        const flatUrl = (0, flatRequestUrl_1.flatRequestUrl)(request);
         if (gaRegex.test(flatUrl)) {
             pubSub.publish(flatUrl);
         }
@@ -134,7 +134,7 @@ const dataLayerFixture = async ({ page }, use) => {
 const facebookFixture = async ({ page, facebookRegex }, use) => {
     const pubSub = new PubSub();
     const requestListener = (request) => {
-        const flatUrl = (0, playwright_utils_1.flatRequestUrl)(request);
+        const flatUrl = (0, flatRequestUrl_1.flatRequestUrl)(request);
         if (facebookRegex.test(flatUrl)) {
             pubSub.publish(flatUrl);
         }
